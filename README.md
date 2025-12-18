@@ -10,17 +10,26 @@ Squache (Squid + Cache) dramatically reduces bandwidth usage for web scraping op
 
 ```mermaid
 flowchart LR
-    subgraph Squache
-        Frontend["Frontend<br/>(Next.js)<br/>:3011"]
-        Backend["Backend<br/>(Express)<br/>:3010"]
-        Proxy["Squid Proxy<br/>(SSL Bump + Caching)<br/>:3128"]
-        DB[(PostgreSQL<br/>Database)]
-        Upstream["Upstream<br/>Proxies"]
+    subgraph Agents
+        A1["Puppeteer"]
+        A2["Scrapers"]
+        A3["Crawlers"]
     end
 
-    Frontend --> Backend --> Proxy
-    Backend --> DB
-    Proxy --> Upstream
+    subgraph Squache
+        Frontend["Dashboard<br/>(Next.js)"]
+        Backend["API<br/>(Express)"]
+        Proxy["Squid Proxy<br/>(SSL Bump + Cache)"]
+        DB[(PostgreSQL)]
+    end
+
+    Upstream["Upstream Proxies<br/>(VPN / Residential)"]
+    Internet((Internet))
+
+    A1 & A2 & A3 --> Proxy
+    Frontend --> Backend --> DB
+    Backend -.-> Proxy
+    Proxy --> Upstream --> Internet
 ```
 
 ## Features
