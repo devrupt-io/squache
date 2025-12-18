@@ -21,6 +21,9 @@ import { CacheStats } from './models/CacheStats';
 import { UpstreamProxy } from './models/UpstreamProxy';
 import { Config } from './models/Config';
 
+// Import services
+import { applySettings } from './services/squidConfig';
+
 export async function initializeDatabase() {
   // Sync all models
   await sequelize.sync({ alter: true });
@@ -51,8 +54,24 @@ export async function initializeDatabase() {
       { key: 'cache_size', value: '10737418240', description: 'Total cache size in bytes (10GB)' },
       { key: 'memory_cache_size', value: '536870912', description: 'Memory cache size in bytes (512MB)' },
       { key: 'default_upstream', value: 'direct', description: 'Default upstream proxy type' },
+      { key: 'ssl_bump_enabled', value: 'true', description: 'Enable SSL bumping for HTTPS traffic' },
+      { key: 'aggressive_caching', value: 'true', description: 'Override cache headers for static assets' },
+      { key: 'log_retention_days', value: '30', description: 'Number of days to retain access logs' },
     ]);
     console.log('Default configuration created.');
+  }
+
+  // Apply current settings to Squid on startup
+  try {
+    const allConfig = await Config.findAll();
+    const configObj: Record<string, string> = {};
+    allConfig.forEach((item) => {
+      configObj[item.key] = item.value;
+    });
+    const result = await applySettings(configObj);
+    console.log('Squid settings applied on startup:', result.message);
+  } catch (error) {
+    console.error('Failed to apply Squid settings on startup:', error);
   }
 }
 

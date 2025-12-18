@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { Config } from '../database';
 import { authMiddleware, adminMiddleware, AuthRequest } from '../middleware/auth';
+import { applySettings } from '../services/squidConfig';
 
 const router = Router();
 
@@ -39,9 +40,20 @@ router.put('/', authMiddleware, adminMiddleware, async (req: AuthRequest, res) =
       });
     }
 
-    // TODO: Apply config changes to Squid (may require restart)
+    // Apply config changes to Squid
+    const allConfig = await Config.findAll();
+    const configObj: Record<string, string> = {};
+    allConfig.forEach((item) => {
+      configObj[item.key] = item.value;
+    });
 
-    res.json({ message: 'Configuration updated' });
+    const result = await applySettings(configObj);
+    console.log('Squid config apply result:', result);
+
+    res.json({ 
+      message: 'Configuration updated',
+      squidStatus: result.message 
+    });
   } catch (error) {
     console.error('Config update error:', error);
     res.status(500).json({ error: 'Failed to update config' });

@@ -19,6 +19,7 @@ import StatsCards from './StatsCards';
 import BandwidthChart from './BandwidthChart';
 import LogsTable from './LogsTable';
 import UpstreamsList from './UpstreamsList';
+import SettingsPanel from './SettingsPanel';
 
 type Tab = 'dashboard' | 'logs' | 'upstreams' | 'settings';
 
@@ -175,12 +176,7 @@ export default function Dashboard() {
 
         {activeTab === 'upstreams' && <UpstreamsList token={token} isAdmin={user?.role === 'admin'} />}
 
-        {activeTab === 'settings' && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Settings</h2>
-            <p className="text-gray-600">Configuration settings coming soon.</p>
-          </div>
-        )}
+        {activeTab === 'settings' && <SettingsPanel token={token} isAdmin={user?.role === 'admin'} />}
       </main>
     </div>
   );

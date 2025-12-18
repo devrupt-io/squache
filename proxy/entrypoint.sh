@@ -29,6 +29,35 @@ chown -R $SQUID_USER:$SQUID_USER /var/log/squid
 # Ensure conf.d directory exists
 mkdir -p /etc/squid/conf.d
 touch /etc/squid/conf.d/upstreams.conf
+
+# Create default settings.conf if it doesn't exist
+if [ ! -f /etc/squid/conf.d/settings.conf ]; then
+    echo "Creating default settings.conf..."
+    cat > /etc/squid/conf.d/settings.conf << 'EOF'
+# Squache Dynamic Settings
+# Auto-generated default - will be managed by squache-backend
+
+# Memory cache: 512 MB
+cache_mem 512 MB
+
+# Maximum cacheable object size: 1 GB
+maximum_object_size 1 GB
+
+maximum_object_size_in_memory 50 MB
+
+# Aggressive caching enabled - override cache headers for static assets
+refresh_pattern -i \.(gif|png|jpg|jpeg|ico|webp|svg|bmp|tiff)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(css|js|jsx|ts|tsx|mjs)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(woff|woff2|ttf|otf|eot)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(mp4|webm|avi|mov|mkv|flv|wmv|m4v)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(mp3|wav|ogg|flac|m4a|aac)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(pdf|doc|docx|xls|xlsx|ppt|pptx)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+refresh_pattern -i \.(zip|rar|7z|tar|gz|bz2)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
+
+# SSL bumping enabled
+EOF
+fi
+
 chown -R $SQUID_USER:$SQUID_USER /etc/squid/conf.d
 
 # Start Squid in foreground mode
