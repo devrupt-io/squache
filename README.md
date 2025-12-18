@@ -4,6 +4,8 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
+<video src="https://github.com/user-attachments/assets/082315ea-a766-4b07-8842-8202f17318ff" controls autoplay muted>Video not supported</video>   
+
 ## Overview
 
 Squache (Squid + Cache) dramatically reduces bandwidth usage for web scraping operations by caching HTTPS traffic using SSL bumping. It supports routing through VPN or residential proxies and provides real-time analytics through a web dashboard.
@@ -221,3 +223,7 @@ docker compose up -d --build
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+
+
+
