@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useAuth } from './AuthProvider';
 import {
   Database,
@@ -21,14 +22,50 @@ import UpstreamsList from './UpstreamsList';
 
 type Tab = 'dashboard' | 'logs' | 'upstreams' | 'settings';
 
+const VALID_TABS: Tab[] = ['dashboard', 'logs', 'upstreams', 'settings'];
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
 
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  
+  // Get initial tab from URL or default to 'dashboard'
+  const getInitialTab = (): Tab => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && VALID_TABS.includes(tabParam as Tab)) {
+      return tabParam as Tab;
+    }
+    return 'dashboard';
+  };
+
+  const [activeTab, setActiveTab] = useState<Tab>(getInitialTab);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Update URL when tab changes
+  const handleTabChange = (tab: Tab) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === 'dashboard') {
+      params.delete('tab');
+    } else {
+      params.set('tab', tab);
+    }
+    const newUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname;
+    router.push(newUrl, { scroll: false });
+  };
+
+  // Sync state with URL on browser back/forward
+  useEffect(() => {
+    const tab = getInitialTab();
+    if (tab !== activeTab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   const fetchStats = async () => {
     if (!token) return;
@@ -80,10 +117,7 @@ export default function Dashboard() {
               <div className="w-10 h-10 rounded-lg bg-primary-100 flex items-center justify-center">
                 <Database className="w-6 h-6 text-primary-600" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">Squache</h1>
-                <p className="text-xs text-gray-500">Intelligent Caching Proxy</p>
-              </div>
+              <h1 className="text-xl font-bold text-gray-900">Squache</h1>
             </div>
 
             <div className="flex items-center space-x-4">
@@ -112,7 +146,7 @@ export default function Dashboard() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as Tab)}
+                  onClick={() => handleTabChange(tab.id as Tab)}
                   className={`flex items-center space-x-2 px-4 py-3 border-b-2 text-sm font-medium transition-colors ${
                     activeTab === tab.id
                       ? 'border-primary-500 text-primary-600'

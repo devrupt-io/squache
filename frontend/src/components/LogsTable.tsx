@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
 
@@ -21,17 +21,97 @@ interface LogEntry {
   responseTime: number;
 }
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes < 0) return '0 B';
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
+  if (i < 0 || i >= sizes.length || isNaN(i)) return '0 B';
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-function truncateUrl(url: string, maxLength: number = 60): string {
-  if (url.length <= maxLength) return url;
-  return url.substring(0, maxLength) + '...';
+function formatRelativeTime(timestamp: string): string {
+  const now = Date.now();
+  const time = new Date(timestamp).getTime();
+  const diffMs = now - time;
+  
+  if (diffMs < 0) return 'now';
+  
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  
+  const days = Math.floor(hours / 24);
+  return `${days}d`;
+}
+
+function formatSmartUrl(url: string, maxLength: number = 50): string {
+  try {
+    // Try to parse as URL
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      // If not a valid URL, just truncate
+      if (url.length <= maxLength) return url;
+      return url.substring(0, maxLength - 3) + '...';
+    }
+    
+    const hostname = parsed.hostname;
+    const pathname = parsed.pathname;
+    const search = parsed.search;
+    
+    // Always show hostname
+    let display = hostname;
+    
+    // Get the filename (last segment) if it looks like a file
+    const pathParts = pathname.split('/').filter(Boolean);
+    const lastSegment = pathParts[pathParts.length - 1] || '';
+    const hasFileExtension = /\.[a-zA-Z0-9]{1,10}$/.test(lastSegment);
+    
+    // Calculate remaining space after hostname
+    const remainingSpace = maxLength - hostname.length - 1; // -1 for the /
+    
+    if (pathname === '/' || pathname === '') {
+      // Just the domain
+      return display;
+    }
+    
+    const fullPath = pathname + search;
+    
+    if (fullPath.length <= remainingSpace) {
+      // Path fits entirely
+      return display + fullPath;
+    }
+    
+    if (hasFileExtension && lastSegment.length < remainingSpace - 4) {
+      // Show domain + ... + filename
+      const availableForPath = remainingSpace - lastSegment.length - 4; // 4 for /...
+      if (availableForPath > 0 && pathParts.length > 1) {
+        const startPath = '/' + pathParts[0].substring(0, Math.min(pathParts[0].length, availableForPath));
+        return display + startPath + '/.../' + lastSegment;
+      }
+      return display + '/.../' + lastSegment;
+    }
+    
+    // Just truncate the path with ellipsis in the middle
+    const halfLength = Math.floor((remainingSpace - 3) / 2);
+    if (halfLength > 0) {
+      return display + fullPath.substring(0, halfLength) + '...' + fullPath.substring(fullPath.length - halfLength);
+    }
+    
+    return display + '/...';
+  } catch {
+    // Fallback: simple truncation
+    if (url.length <= maxLength) return url;
+    return url.substring(0, maxLength - 3) + '...';
+  }
 }
 
 export default function LogsTable({ token }: LogsTableProps) {
@@ -123,10 +203,7 @@ export default function LogsTable({ token }: LogsTableProps) {
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Time
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Client
+                Age
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Method
@@ -146,6 +223,9 @@ export default function LogsTable({ token }: LogsTableProps) {
               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Time
               </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Client
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -164,30 +244,33 @@ export default function LogsTable({ token }: LogsTableProps) {
             ) : (
               logs.map((log) => (
                 <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
-                    {new Date(log.timestamp).toLocaleString()}
+                  <td 
+                    className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap cursor-help"
+                    title={new Date(log.timestamp).toLocaleString()}
+                  >
+                    {formatRelativeTime(log.timestamp)}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono">{log.clientIp}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className="font-medium text-gray-900">{log.method}</span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600" title={log.url}>
-                    {truncateUrl(log.url)}
+                  <td className="px-4 py-3 text-sm text-gray-600 font-mono" title={log.url}>
+                    {formatSmartUrl(log.url)}
                   </td>
                   <td className={`px-4 py-3 text-sm font-medium ${httpStatusColor(log.httpStatus)}`}>
                     {log.httpStatus}
                   </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${cacheStatusColor(
-                        log.cacheStatus
-                      )}`}
-                    >
-                      {log.cacheStatus}
-                    </span>
+                  <td className="px-4 py-3 text-sm" title={log.cacheStatus}>
+                    {log.cacheStatus.includes('HIT') ? (
+                      <CheckCircle className="w-5 h-5 text-green-500 cursor-help" />
+                    ) : log.cacheStatus.includes('DENIED') ? (
+                      <MinusCircle className="w-5 h-5 text-red-500 cursor-help" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-gray-400 cursor-help" />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-600">{formatBytes(log.bytesSent)}</td>
                   <td className="px-4 py-3 text-sm text-gray-600">{log.responseTime}ms</td>
+                  <td className="px-4 py-3 text-sm text-gray-500 font-mono">{log.clientIp}</td>
                 </tr>
               ))
             )}

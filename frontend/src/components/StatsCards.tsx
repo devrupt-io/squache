@@ -17,11 +17,13 @@ interface StatsCardsProps {
   loading: boolean;
 }
 
-function formatBytes(bytes: number): string {
+function formatBytes(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes < 0) return '0 B';
   if (bytes === 0) return '0 B';
   const k = 1024;
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
+  if (i < 0 || i >= sizes.length || isNaN(i)) return '0 B';
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -37,7 +39,7 @@ export default function StatsCards({ stats, loading }: StatsCardsProps) {
     {
       title: 'Cache Hit Rate',
       value: `${stats?.hitRate || 0}%`,
-      subtitle: `${stats?.cacheHits || 0} hits / ${stats?.cacheMisses || 0} misses`,
+      subtitle: `${(stats?.cacheHits || 0).toLocaleString()} hits / ${(stats?.cacheMisses || 0).toLocaleString()} misses`,
       icon: Zap,
       color: 'green',
     },
