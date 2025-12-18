@@ -1,0 +1,9 @@
+{
+  "name": "Squache",
+  "short_name": "Squache",
+  "description": "Intelligent Caching Proxy for Web Scraping",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#16a34a"
+}
