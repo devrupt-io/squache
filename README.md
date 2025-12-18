@@ -131,26 +131,44 @@ await page.goto('https://example.com');
 
 ## API Endpoints
 
+All endpoints except `/health` and `/api/auth/login` require authentication via Bearer token.
+
+### Authentication
+- `POST /api/auth/login` – Login with email/password, returns JWT token
+- `POST /api/auth/logout` – Logout (client-side token removal)
+- `GET /api/auth/me` – Get current user info
+
 ### Statistics
-- `GET /api/stats` – Overall cache statistics
-- `GET /api/stats/bandwidth` – Bandwidth over time
-- `GET /api/stats/domains` – Per-domain stats
+- `GET /api/stats` – Overall cache statistics (last 24 hours)
+- `GET /api/stats/bandwidth` – Bandwidth over time (query: `range=5m|30m|1h|6h|24h|today`)
+- `GET /api/stats/domains` – Per-domain stats (query: `hours`, `limit`)
 
 ### Cache
-- `GET /api/cache` – List cached objects
-- `DELETE /api/cache` – Purge all
-- `DELETE /api/cache/:pattern` – Purge by pattern
+- `GET /api/cache` – Cache info (size, object count)
+- `DELETE /api/cache` – Purge all cache (admin only)
+- `DELETE /api/cache/:pattern` – Purge cache by URL pattern (admin only)
 
 ### Logs
-- `GET /api/logs` – Recent access logs
-- `GET /api/logs/search` – Search logs
+- `GET /api/logs` – Recent access logs (query: `limit`, `offset`)
+- `GET /api/logs/search` – Search logs (query: `url`, `ip`, `status`, `method`, `from`, `to`, `limit`, `offset`)
 
 ### Configuration
-- `GET /api/config` – Current config
-- `PUT /api/config` – Update config
+- `GET /api/config` – Get all config values
+- `PUT /api/config` – Update config (admin only, applies changes to Squid)
+- `GET /api/config/:key` – Get single config value
+- `GET /api/config/ssl/status` – Check if SSL certificate exists
+- `GET /api/config/ssl/certificate` – Download CA certificate for SSL bumping
+
+### Upstream Proxies
 - `GET /api/upstreams` – List upstream proxies
-- `POST /api/upstreams` – Add upstream proxy
-- `DELETE /api/upstreams/:id` – Remove upstream
+- `POST /api/upstreams` – Add upstream proxy (admin only)
+- `PUT /api/upstreams/:id` – Update upstream proxy (admin only)
+- `DELETE /api/upstreams/:id` – Remove upstream proxy (admin only)
+- `GET /api/upstreams/providers` – List known proxy providers (Webshare, Bright Data, etc.)
+- `POST /api/upstreams/parse-url` – Parse a proxy URL to extract host, port, credentials
+
+### Health
+- `GET /health` – Service health check (no auth required)
 
 ## Docker Services
 
