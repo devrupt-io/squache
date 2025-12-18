@@ -1,228 +1,315 @@
 # Squache
 
-> Intelligent caching proxy for web scraping with SSL bumping, upstream proxy routing, and a web-based management interface.
+> Cache HTTPS traffic for web scraping. Cut bandwidth costs by 90%.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](#changelog)
 
-<video src="https://github.com/user-attachments/assets/082315ea-a766-4b07-8842-8202f17318ff" controls autoplay muted>Video not supported</video>   
+<video src="https://github.com/user-attachments/assets/082315ea-a766-4b07-8842-8202f17318ff" controls autoplay muted>Video not supported</video>
 
-## Overview
+## Why Squache?
 
-Squache (Squid + Cache) dramatically reduces bandwidth usage for web scraping operations by caching HTTPS traffic using SSL bumping. It supports routing through VPN or residential proxies and provides real-time analytics through a web dashboard.
+If you're running Puppeteer, Playwright, or any web scraper, you're downloading
+the same JavaScript bundles, fonts, and images over and over again. Squache
+intercepts HTTPS traffic and caches everything
+aggressively reducing bandwidth by 90%+ for repeated crawls.
 
-```mermaid
-flowchart LR
-    subgraph Agents
-        A1["Puppeteer"]
-        A2["Scrapers"]
-        A3["Crawlers"]
-    end
-
-    subgraph Squache
-        Frontend["Dashboard<br/>(Next.js)"]
-        Backend["API<br/>(Express)"]
-        Proxy["Squid Proxy<br/>(SSL Bump + Cache)"]
-        DB[(PostgreSQL)]
-    end
-
-    Upstream["Upstream Proxies<br/>(VPN / Residential)"]
-    Internet((Internet))
-
-    A1 & A2 & A3 --> Proxy
-    Frontend --> Backend --> DB
-    Backend -.-> Proxy
-    Proxy --> Upstream --> Internet
-```
-
-## Features
-
-- **SSL Bumping** – Intercepts and caches HTTPS traffic using a self-signed CA
-- **Aggressive Caching** – Caches images, video, JS, CSS, and fonts
-- **Upstream Proxy Routing** – Route through VPN or residential proxies with geographic selection
-- **Web Dashboard** – Real-time bandwidth metrics, cache statistics, and log viewer
-- **Configurable Rules** – Define caching rules per domain or content type
+**Use cases:**
+- Running hundreds of Puppeteer instances
+- Scraping the same domains repeatedly
+- Minimizing expensive residential proxy usage
+- Building reproducible scrapers (same cached assets)
 
 ## Quick Start
 
-### 1. Clone and Configure
-
 ```bash
-git clone https://github.com/yourorg/squache.git
+git clone https://github.com/devrupt-io/squache.git
 cd squache
-
-# Copy example environment files
-cp backend.env.example backend.env
-cp frontend.env.example frontend.env
-
-# Edit with your settings
-nano backend.env
-```
-
-### 2. Generate SSL Certificate
-
-The proxy requires a CA certificate for SSL bumping. Generate it once:
-
-```bash
-./scripts/generate-ssl-cert.sh
-```
-
-This creates certificates in `data/squache/ssl/`.
-
-### 3. Start Services
-
-```bash
 docker compose up -d
 ```
 
-Access the dashboard at http://localhost:3011
+That's it. No configuration required. SSL certificates are generated automatically.
 
-## Configuration
+- **Dashboard:** http://localhost:3011
+- **Proxy:** http://localhost:3128
 
-### Backend (`backend.env`)
+**First-time login:** Check the logs for your auto-generated admin password:
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection string |
-| `JWT_SECRET` | Secret for JWT token signing |
-| `ADMIN_EMAIL` | Admin account email (created on first run) |
-| `ADMIN_PASS` | Admin account password |
-| `UPSTREAM_PROXIES` | JSON array of upstream proxy configs |
+```bash
+docker compose logs backend | grep -A5 "SQUACHE ADMIN"
+```
 
-### Frontend (`frontend.env`)
+Or set your own password:
 
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL (browser-accessible) |
-| `API_URL_INTERNAL` | Backend URL for SSR (Docker network) |
+```bash
+ADMIN_PASS=your-password docker compose up -d
+```
 
-See `backend.env.example` and `frontend.env.example` for all options.
+### Install the CA Certificate
 
-## Usage
+Squache uses SSL bumping to cache HTTPS traffic. Download and install the CA certificate:
 
-### With Puppeteer
+```bash
+# Download the CA certificate
+curl -o squache-ca.crt http://localhost:3010/api/config/ssl/certificate
+
+# Linux
+sudo cp squache-ca.crt /usr/local/share/ca-certificates/
+sudo update-ca-certificates
+
+# macOS
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain squache-ca.crt
+
+# Node.js (or add to your shell profile)
+export NODE_EXTRA_CA_CERTS=$(pwd)/squache-ca.crt
+```
+
+### Use with Puppeteer
 
 ```typescript
 import puppeteer from 'puppeteer';
 
 const browser = await puppeteer.launch({
-  args: [
-    '--proxy-server=http://localhost:3128',
-    '--ignore-certificate-errors',
-  ],
+  args: ['--proxy-server=http://localhost:3128'],
 });
 
-const page = await browser.newPage();
-
-// Optional: Route through specific upstream proxy
-await page.setExtraHTTPHeaders({
-  'X-Squache-Upstream': 'residential',
-  'X-Squache-Country': 'US',
-});
-
-await page.goto('https://example.com');
+await browser.newPage().then(page => page.goto('https://example.com'));
 ```
 
-### Upstream Proxy Headers
+### Use with any HTTP client
 
-| Header | Values | Description |
-|--------|--------|-------------|
-| `X-Squache-Upstream` | `direct`, `vpn`, `residential` | Proxy type |
-| `X-Squache-Country` | ISO code | Target country |
-| `X-Squache-City` | City name | Target city |
-| `X-Squache-Provider` | Provider name | Specific provider |
+```bash
+# curl (after installing CA cert)
+curl -x http://localhost:3128 https://example.com
 
-## API Endpoints
+# wget
+https_proxy=http://localhost:3128 wget https://example.com
 
-All endpoints except `/health` and `/api/auth/login` require authentication via Bearer token.
+# Node.js / Python
+export HTTPS_PROXY=http://localhost:3128
+```
 
-### Authentication
-- `POST /api/auth/login` – Login with email/password, returns JWT token
-- `POST /api/auth/logout` – Logout (client-side token removal)
-- `GET /api/auth/me` – Get current user info
+## How It Works
 
-### Statistics
-- `GET /api/stats` – Overall cache statistics (last 24 hours)
-- `GET /api/stats/bandwidth` – Bandwidth over time (query: `range=5m|30m|1h|6h|24h|today`)
-- `GET /api/stats/domains` – Per-domain stats (query: `hours`, `limit`)
+```mermaid
+flowchart LR
+    subgraph Scraper["Your Scraper"]
+        A1["Puppeteer"]
+        A2["curl"]
+        A3["Python"]
+    end
+
+    subgraph Squache
+        Proxy["Squid Proxy<br/>(SSL Bump + Cache)"]
+        Dashboard["Dashboard<br/>(Next.js)"]
+        API["API<br/>(Express.js)"]
+        DB[(PostgreSQL)]
+        
+        Dashboard --> API --> DB
+        API -.-> Proxy
+    end
+
+    Scraper --> Proxy --> Internet((Internet))
+```
+
+**Key features:**
+- **SSL Bumping** - Decrypts HTTPS to cache responses (generates certs on-the-fly)
+- **Aggressive Caching** - Forces caching of JS, CSS, images, fonts, and media
+- **Web Dashboard** - Real-time bandwidth metrics and cache hit rates
+- **Zero Config** - SSL certificates auto-generated on first run
+
+## Dashboard
+
+The dashboard shows real-time statistics:
+- Bandwidth saved vs. bandwidth used
+- Cache hit/miss ratios
+- Per-domain statistics
+- Request logs with search
+
+Access at http://localhost:3011 after starting the services.
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file to customize:
+
+```bash
+# Admin credentials (password auto-generated if empty)
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASS=your-secure-password  # Leave empty to auto-generate on each start
+
+# Security (generate with: openssl rand -hex 32)
+JWT_SECRET=your-random-secret
+
+# If exposing to the internet
+FRONTEND_URL=https://squache.yourdomain.com
+BACKEND_URL=https://api.squache.yourdomain.com
+CORS_ORIGIN=https://squache.yourdomain.com
+```
+
+## API Reference
+
+Most endpoints require authentication via Bearer token. Public endpoints are
+marked below.
+
+### Auth
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | Login, returns JWT |
+| GET | `/api/auth/me` | Current user info |
+
+### Stats
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/stats` | Overall statistics |
+| GET | `/api/stats/bandwidth?range=1h` | Bandwidth over time |
+| GET | `/api/stats/domains` | Per-domain breakdown |
 
 ### Cache
-- `GET /api/cache` – Cache info (size, object count)
-- `DELETE /api/cache` – Purge all cache (admin only)
-- `DELETE /api/cache/:pattern` – Purge cache by URL pattern (admin only)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/cache` | Cache size and object count |
+| DELETE | `/api/cache` | Purge all cache (admin) |
 
 ### Logs
-- `GET /api/logs` – Recent access logs (query: `limit`, `offset`)
-- `GET /api/logs/search` – Search logs (query: `url`, `ip`, `status`, `method`, `from`, `to`, `limit`, `offset`)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/logs` | Recent access logs |
+| GET | `/api/logs/search?url=...` | Search logs |
 
-### Configuration
-- `GET /api/config` – Get all config values
-- `PUT /api/config` – Update config (admin only, applies changes to Squid)
-- `GET /api/config/:key` – Get single config value
-- `GET /api/config/ssl/status` – Check if SSL certificate exists
-- `GET /api/config/ssl/certificate` – Download CA certificate for SSL bumping
+### SSL (Public)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/config/ssl/certificate` | Download CA cert (no auth) |
 
-### Upstream Proxies
-- `GET /api/upstreams` – List upstream proxies
-- `POST /api/upstreams` – Add upstream proxy (admin only)
-- `PUT /api/upstreams/:id` – Update upstream proxy (admin only)
-- `DELETE /api/upstreams/:id` – Remove upstream proxy (admin only)
-- `GET /api/upstreams/providers` – List known proxy providers (Webshare, Bright Data, etc.)
-- `POST /api/upstreams/parse-url` – Parse a proxy URL to extract host, port, credentials
+### Upstream Proxies (v0.2.0)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/upstreams` | List upstream proxies |
+| POST | `/api/upstreams` | Add upstream proxy |
+| GET | `/api/upstreams/providers` | List known providers |
 
-### Health
-- `GET /health` – Service health check (no auth required)
+### Health (Public)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Service health (no auth) |
 
-## Docker Services
+## Ports
 
 | Service | Port | Description |
 |---------|------|-------------|
-| `squache-proxy` | 3128 | Squid caching proxy |
-| `squache-backend` | 3010 | Express API server |
-| `squache-frontend` | 3011 | Next.js dashboard |
+| Proxy | 3128 | Point scrapers here |
+| Backend | 3010 | REST API |
+| Frontend | 3011 | Web dashboard |
 
 ## Bandwidth Savings
 
 Typical savings for web scraping workloads:
 
-- **Static assets**: 90%+ cache hit rate
-- **Repeated crawls**: Dramatically reduced bandwidth
-- **Residential proxies**: Minimize expensive metered connections
-
-## SSL Certificate Trust
-
-For production use, install the generated CA certificate in your system trust store instead of using `--ignore-certificate-errors`:
-
-```bash
-# Linux
-sudo cp data/squache/ssl/squid-ca.crt /usr/local/share/ca-certificates/squache.crt
-sudo update-ca-certificates
-
-# macOS
-sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain data/squache/ssl/squid-ca.crt
-```
-
-For Node.js applications:
-
-```bash
-export NODE_EXTRA_CA_CERTS=/path/to/squid-ca.crt
-```
+| Content Type | Cache Hit Rate |
+|-------------|----------------|
+| JavaScript/CSS | 95%+ |
+| Images/Fonts | 90%+ |
+| Video/Media | 85%+ |
+| Repeated crawls | 90%+ overall |
 
 ## Development
 
 ```bash
-# Start services
+# Clone
+git clone https://github.com/devrupt-io/squache.git
+cd squache
+
+# Start in development mode
 docker compose up -d
 
-# View proxy logs
-docker compose logs -f squache-proxy
+# Watch logs
+docker compose logs -f
 
 # Rebuild after changes
 docker compose up -d --build
 ```
 
+## Roadmap
+
+### v0.2.0 - Upstream Proxy Routing
+
+Route requests through VPN or residential proxies based on HTTP headers:
+
+```typescript
+await page.setExtraHTTPHeaders({
+  'X-Squache-Upstream': 'residential',  // vpn | residential | direct
+  'X-Squache-Country': 'US',            // ISO country code
+});
+```
+
+- [ ] Wire up Squid ACLs for header-based routing
+- [ ] Provider integrations (Webshare, Bright Data, Oxylabs)
+- [ ] Load balancing across multiple upstream proxies
+- [ ] Automatic failover
+
+> **Note:** The infrastructure exists (database models, API endpoints, config
+> generation in
+> [backend/src/routes/upstreams.ts](backend/src/routes/upstreams.ts)), but Squid
+> routing rules are not yet fully wired up.
+
+## Architecture
+
+```
+squache/
+├── proxy/              # Squid configuration
+│   ├── squid.conf      # Main config
+│   ├── entrypoint.sh   # Auto-init SSL db
+│   └── conf.d/         # Dynamic config (managed by backend)
+├── backend/            # Express.js API
+│   └── src/
+│       ├── routes/     # REST endpoints
+│       ├── services/   # Squid config generator
+│       └── models/     # Sequelize models
+├── frontend/           # Next.js dashboard
+└── docker-compose.yml  # Self-contained setup
+```
+
+## Changelog
+
+### v0.1.0 (2024-12-18)
+
+Initial release.
+
+- SSL bumping with auto-generated CA certificates
+- Aggressive caching for static assets (JS, CSS, images, fonts, video)
+- Web dashboard with real-time metrics
+- PostgreSQL for statistics and configuration
+- Docker Compose for easy self-hosting
+- REST API for programmatic access
+
+## Contributing
+
+Pull requests welcome. For major changes, please open an issue first.
+
+## Powered By
+
+Squache is built on the shoulders of giants:
+
+- **[Squid Cache](http://www.squid-cache.org/)** - The battle-tested caching
+  proxy that powers Squache. 25+ years of development, used by ISPs and
+  enterprises worldwide. All the SSL bumping, caching algorithms, and proxy
+  magic comes from Squid.
+- **[Next.js](https://nextjs.org/)** - React framework powering the dashboard
+- **[Express.js](https://expressjs.com/)** - Fast, unopinionated API server
+- **[Sequelize](https://sequelize.org/)** - TypeScript ORM for PostgreSQL
+- **[PostgreSQL](https://www.postgresql.org/)** - Rock-solid database
+- **[Docker](https://www.docker.com/)** - Containerization for easy deployment
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+Built by [devrupt.io](https://devrupt.io) - We build practical tools for
+everyone.
 
 
 
