@@ -1,0 +1,105 @@
+# Squache - Intelligent Caching Proxy for Web Scraping
+# Standalone Docker Compose for self-hosting
+#
+# Quick Start:
+#   docker compose up -d
+#
+# Dashboard: http://localhost:3011
+# Proxy:     http://localhost:3128
+#
+# On first run, check logs for admin password:
+#   docker compose logs backend | grep -A5 "SQUACHE ADMIN"
+
+services:
+  # PostgreSQL database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: squache
+      POSTGRES_PASSWORD: squache_password
+      POSTGRES_DB: squache
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U squache"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Squid Caching Proxy with SSL Bumping
+  # SSL certificates are auto-generated on first run
+  proxy:
+    build:
+      context: ./proxy
+      dockerfile: Dockerfile
+    ports:
+      - "3128:3128"
+    volumes:
+      - ssl_certs:/etc/squid/ssl
+      - cache_data:/var/spool/squid
+      - logs:/var/log/squid
+      - config:/etc/squid/conf.d
+    healthcheck:
+      test: ["CMD", "squidclient", "-h", "localhost", "mgr:info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: prod
+    environment:
+      - DATABASE_URL=postgres://squache:squache_password@postgres:5432/squache
+      - PORT=3010
+      - NODE_ENV=production
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production-use-a-random-string}
+      - JWT_EXPIRES_IN=7d
+      - BACKEND_URL=http://localhost:3010
+      - FRONTEND_URL=http://localhost:3011
+      - CORS_ORIGIN=http://localhost:3011
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@squache.local}
+      - ADMIN_PASS=${ADMIN_PASS:-}
+      - SQUID_LOG_PATH=/var/log/squid/access.log
+      - SQUID_CACHE_DIR=/var/spool/squid
+      - SSL_CERT_PATH=/etc/squid/ssl/squid-ca.crt
+    ports:
+      - "3010:3010"
+    volumes:
+      - logs:/var/log/squid:ro
+      - config:/etc/squid/conf.d
+      - ssl_certs:/etc/squid/ssl:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      proxy:
+        condition: service_started
+    restart: unless-stopped
+
+  # Frontend Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3010
+        NEXT_PUBLIC_SITE_URL: http://localhost:3011
+    environment:
+      - API_URL_INTERNAL=http://backend:3010
+    ports:
+      - "3011:3011"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ssl_certs:
+  cache_data:
+  logs:
+  config:
