@@ -11,6 +11,8 @@ import {
   Settings,
   AlertCircle,
   CheckCircle,
+  Download,
+  FileKey,
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
@@ -69,6 +71,10 @@ export default function SettingsPanel({ token, isAdmin }: SettingsPanelProps) {
   const [hasChanges, setHasChanges] = useState(false);
   const [originalConfig, setOriginalConfig] = useState<ConfigState>(DEFAULT_CONFIG);
 
+  // SSL certificate state
+  const [sslCertExists, setSslCertExists] = useState(false);
+  const [sslDownloading, setSslDownloading] = useState(false);
+
   // Size input states with units
   const [maxObjectSizeValue, setMaxObjectSizeValue] = useState(1);
   const [maxObjectSizeUnit, setMaxObjectSizeUnit] = useState('GB');
@@ -76,6 +82,52 @@ export default function SettingsPanel({ token, isAdmin }: SettingsPanelProps) {
   const [cacheSizeUnit, setCacheSizeUnit] = useState('GB');
   const [memoryCacheSizeValue, setMemoryCacheSizeValue] = useState(512);
   const [memoryCacheSizeUnit, setMemoryCacheSizeUnit] = useState('MB');
+
+  // Check SSL certificate status
+  const checkSslStatus = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/config/ssl/status`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSslCertExists(data.exists);
+      }
+    } catch (error) {
+      console.error('Failed to check SSL status:', error);
+    }
+  };
+
+  // Download SSL certificate
+  const handleDownloadCert = async () => {
+    if (!token) return;
+    setSslDownloading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/config/ssl/certificate`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'squache-ca.crt';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const error = await res.json();
+        setMessage({ type: 'error', text: error.message || 'Failed to download certificate' });
+      }
+    } catch (error) {
+      console.error('Failed to download certificate:', error);
+      setMessage({ type: 'error', text: 'Failed to download certificate' });
+    } finally {
+      setSslDownloading(false);
+    }
+  };
 
   const fetchConfig = async () => {
     if (!token) return;
@@ -125,6 +177,7 @@ export default function SettingsPanel({ token, isAdmin }: SettingsPanelProps) {
 
   useEffect(() => {
     fetchConfig();
+    checkSslStatus();
   }, [token]);
 
   // Update config when size values change
@@ -446,6 +499,48 @@ export default function SettingsPanel({ token, isAdmin }: SettingsPanelProps) {
                 }`}
               />
             </button>
+          </div>
+
+          {/* SSL Certificate Download */}
+          <div className="pt-4 border-t">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center space-x-2">
+                  <FileKey className="w-5 h-5 text-gray-600" />
+                  <label className="font-medium text-gray-900">CA Certificate</label>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">
+                  Install this certificate in your system or browser to trust HTTPS connections through Squache.
+                </p>
+                <div className="mt-3 text-xs text-gray-500 space-y-1">
+                  <p><strong>Linux:</strong> Copy to <code className="bg-gray-100 px-1 rounded">/usr/local/share/ca-certificates/</code> and run <code className="bg-gray-100 px-1 rounded">update-ca-certificates</code></p>
+                  <p><strong>macOS:</strong> Double-click the file and add to System keychain with "Always Trust"</p>
+                  <p><strong>Node.js:</strong> Set <code className="bg-gray-100 px-1 rounded">NODE_EXTRA_CA_CERTS=/path/to/squache-ca.crt</code></p>
+                </div>
+              </div>
+              <button
+                onClick={handleDownloadCert}
+                disabled={!sslCertExists || sslDownloading}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  sslCertExists
+                    ? 'bg-primary-600 text-white hover:bg-primary-700'
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                {sslDownloading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>{sslDownloading ? 'Downloading...' : 'Download Certificate'}</span>
+              </button>
+            </div>
+            {!sslCertExists && (
+              <div className="mt-3 p-3 bg-yellow-50 text-yellow-700 rounded-lg text-sm flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>SSL certificate not found. Run the SSL setup script to generate certificates.</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
