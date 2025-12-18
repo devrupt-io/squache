@@ -1,5 +1,6 @@
 import { Sequelize } from 'sequelize';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 const databaseUrl = process.env.DATABASE_URL || 'postgres://devrupt:devrupt@postgres:5432/squache';
 
@@ -24,25 +25,51 @@ import { Config } from './models/Config';
 // Import services
 import { applySettings } from './services/squidConfig';
 
+/**
+ * Generate a random password for admin user
+ */
+function generatePassword(): string {
+  return crypto.randomBytes(16).toString('base64').slice(0, 20);
+}
+
 export async function initializeDatabase() {
   // Sync all models
   await sequelize.sync({ alter: true });
 
-  // Create admin user if it doesn't exist
-  const adminEmail = process.env.ADMIN_EMAIL;
-  const adminPass = process.env.ADMIN_PASS;
+  // Handle admin user creation/password reset
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@squache.local';
+  let adminPass = process.env.ADMIN_PASS;
 
-  if (adminEmail && adminPass) {
-    const existingAdmin = await User.findOne({ where: { email: adminEmail } });
-    if (!existingAdmin) {
-      const hashedPassword = await bcrypt.hash(adminPass, 10);
-      await User.create({
-        email: adminEmail,
-        password: hashedPassword,
-        role: 'admin',
-      });
-      console.log(`Admin user created: ${adminEmail}`);
-    }
+  // Generate password if not provided
+  if (!adminPass || adminPass.trim() === '') {
+    adminPass = generatePassword();
+    console.log('');
+    console.log('='.repeat(60));
+    console.log('  SQUACHE ADMIN CREDENTIALS');
+    console.log('='.repeat(60));
+    console.log(`  Email:    ${adminEmail}`);
+    console.log(`  Password: ${adminPass}`);
+    console.log('');
+    console.log('  Set ADMIN_PASS environment variable to use a fixed password.');
+    console.log('='.repeat(60));
+    console.log('');
+  }
+
+  const hashedPassword = await bcrypt.hash(adminPass, 10);
+  const existingAdmin = await User.findOne({ where: { email: adminEmail } });
+
+  if (!existingAdmin) {
+    // Create new admin user
+    await User.create({
+      email: adminEmail,
+      password: hashedPassword,
+      role: 'admin',
+    });
+    console.log(`Admin user created: ${adminEmail}`);
+  } else {
+    // Reset password on every startup to match ADMIN_PASS (or generated password)
+    await existingAdmin.update({ password: hashedPassword });
+    console.log(`Admin password reset for: ${adminEmail}`);
   }
 
   // Initialize default config if not exists
