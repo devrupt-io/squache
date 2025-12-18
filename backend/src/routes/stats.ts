@@ -69,12 +69,47 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// Get bandwidth over time
+// Get bandwidth over time with configurable time range and bucket size
 router.get('/bandwidth', authMiddleware, async (req, res) => {
   try {
-    const hours = parseInt(req.query.hours as string) || 24;
-    const since = new Date();
-    since.setHours(since.getHours() - hours);
+    // Time range presets: 5m, 30m, 1h, 6h, 24h, today
+    const range = (req.query.range as string) || '1h';
+    
+    // Calculate time range and bucket size
+    const now = new Date();
+    let since: Date;
+    let bucketMinutes: number;
+    
+    switch (range) {
+      case '5m':
+        since = new Date(now.getTime() - 5 * 60 * 1000);
+        bucketMinutes = 1; // 1-minute buckets for 5-min view
+        break;
+      case '30m':
+        since = new Date(now.getTime() - 30 * 60 * 1000);
+        bucketMinutes = 5; // 5-minute buckets for 30-min view
+        break;
+      case '1h':
+        since = new Date(now.getTime() - 60 * 60 * 1000);
+        bucketMinutes = 5; // 5-minute buckets for 1-hour view
+        break;
+      case '6h':
+        since = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+        bucketMinutes = 30; // 30-minute buckets for 6-hour view
+        break;
+      case '24h':
+        since = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        bucketMinutes = 60; // 1-hour buckets for 24-hour view
+        break;
+      case 'today':
+        since = new Date(now);
+        since.setHours(0, 0, 0, 0);
+        bucketMinutes = 60; // 1-hour buckets for today view
+        break;
+      default:
+        since = new Date(now.getTime() - 60 * 60 * 1000);
+        bucketMinutes = 5;
+    }
 
     const stats = await CacheStats.findAll({
       where: {
@@ -84,18 +119,27 @@ router.get('/bandwidth', authMiddleware, async (req, res) => {
       order: [['timestamp', 'ASC']],
     });
 
-    // Group by hour for easier visualization
-    const hourlyStats = new Map<string, {
+    // Group by bucket intervals
+    const bucketStats = new Map<string, {
       timestamp: string;
       bytesSent: number;
       bytesFromCache: number;
       requests: number;
     }>();
 
+    // Round timestamp down to nearest bucket
+    const getBucketKey = (date: Date): string => {
+      const d = new Date(date);
+      const minutes = d.getMinutes();
+      const roundedMinutes = Math.floor(minutes / bucketMinutes) * bucketMinutes;
+      d.setMinutes(roundedMinutes, 0, 0);
+      return d.toISOString();
+    };
+
     stats.forEach((stat) => {
-      const hourKey = new Date(stat.timestamp).toISOString().substring(0, 13) + ':00:00.000Z';
-      const existing = hourlyStats.get(hourKey) || {
-        timestamp: hourKey,
+      const bucketKey = getBucketKey(new Date(stat.timestamp));
+      const existing = bucketStats.get(bucketKey) || {
+        timestamp: bucketKey,
         bytesSent: 0,
         bytesFromCache: 0,
         requests: 0,
@@ -105,10 +149,31 @@ router.get('/bandwidth', authMiddleware, async (req, res) => {
       existing.bytesFromCache += Number(stat.bytesFromCache);
       existing.requests += stat.totalRequests;
 
-      hourlyStats.set(hourKey, existing);
+      bucketStats.set(bucketKey, existing);
     });
 
-    res.json(Array.from(hourlyStats.values()));
+    // Fill in empty buckets for a continuous chart
+    const result: { timestamp: string; bytesSent: number; bytesFromCache: number; requests: number }[] = [];
+    const bucketMs = bucketMinutes * 60 * 1000;
+    let currentBucket = new Date(Math.floor(since.getTime() / bucketMs) * bucketMs);
+    
+    while (currentBucket <= now) {
+      const key = currentBucket.toISOString();
+      const existing = bucketStats.get(key);
+      result.push(existing || {
+        timestamp: key,
+        bytesSent: 0,
+        bytesFromCache: 0,
+        requests: 0,
+      });
+      currentBucket = new Date(currentBucket.getTime() + bucketMs);
+    }
+
+    res.json({
+      range,
+      bucketMinutes,
+      data: result,
+    });
   } catch (error) {
     console.error('Bandwidth stats error:', error);
     res.status(500).json({ error: 'Failed to get bandwidth stats' });
