@@ -87,8 +87,8 @@ router.get('/:key', authMiddleware, async (req, res) => {
   }
 });
 
-// Download SSL CA certificate
-router.get('/ssl/certificate', authMiddleware, async (req, res) => {
+// Download SSL CA certificate (public - no auth required for setup)
+router.get('/ssl/certificate', async (req, res) => {
   try {
     // Check if certificate file exists
     if (!fs.existsSync(SSL_CERT_PATH)) {
