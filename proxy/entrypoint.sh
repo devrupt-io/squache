@@ -6,6 +6,25 @@ set -e
 # On Ubuntu, Squid runs as 'proxy' user, not 'squid'
 SQUID_USER="proxy"
 
+# Generate SSL CA certificate if it doesn't exist
+SSL_DIR="/etc/squid/ssl"
+if [ ! -f "$SSL_DIR/squid-ca.crt" ] || [ ! -f "$SSL_DIR/squid-ca.key" ]; then
+    echo "=============================================="
+    echo "Generating SSL CA certificate for SSL bumping..."
+    echo "=============================================="
+    mkdir -p "$SSL_DIR"
+    openssl req -new -newkey rsa:2048 -sha256 -days 3650 -nodes -x509 \
+        -extensions v3_ca \
+        -keyout "$SSL_DIR/squid-ca.key" \
+        -out "$SSL_DIR/squid-ca.crt" \
+        -subj "/C=US/ST=State/L=City/O=Squache/CN=SquacheCA" 2>/dev/null
+    chmod 644 "$SSL_DIR/squid-ca.crt"
+    chmod 600 "$SSL_DIR/squid-ca.key"
+    echo "SSL certificate generated successfully!"
+    echo "Download from: http://localhost:3010/api/config/ssl/certificate"
+    echo "=============================================="
+fi
+
 # Create SSL database if it doesn't exist or is corrupted/empty
 # Check for index.txt which is created when db is properly initialized
 if [ ! -f /var/lib/squid/ssl_db/index.txt ]; then
@@ -33,29 +52,7 @@ touch /etc/squid/conf.d/upstreams.conf
 # Create default settings.conf if it doesn't exist
 if [ ! -f /etc/squid/conf.d/settings.conf ]; then
     echo "Creating default settings.conf..."
-    cat > /etc/squid/conf.d/settings.conf << 'EOF'
-# Squache Dynamic Settings
-# Auto-generated default - will be managed by squache-backend
-
-# Memory cache: 512 MB
-cache_mem 512 MB
-
-# Maximum cacheable object size: 1 GB
-maximum_object_size 1 GB
-
-maximum_object_size_in_memory 50 MB
-
-# Aggressive caching enabled - override cache headers for static assets
-refresh_pattern -i \.(gif|png|jpg|jpeg|ico|webp|svg|bmp|tiff)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(css|js|jsx|ts|tsx|mjs)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(woff|woff2|ttf|otf|eot)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(mp4|webm|avi|mov|mkv|flv|wmv|m4v)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(mp3|wav|ogg|flac|m4a|aac)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(pdf|doc|docx|xls|xlsx|ppt|pptx)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-refresh_pattern -i \.(zip|rar|7z|tar|gz|bz2)$ 10080 90% 43200 override-expire override-lastmod reload-into-ims ignore-reload ignore-no-store ignore-private
-
-# SSL bumping enabled
-EOF
+    cp /etc/squid/conf.d.default/settings.conf.default /etc/squid/conf.d/settings.conf
 fi
 
 chown -R $SQUID_USER:$SQUID_USER /etc/squid/conf.d

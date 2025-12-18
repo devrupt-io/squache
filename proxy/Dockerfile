@@ -13,13 +13,14 @@ RUN id -u proxy &>/dev/null || useradd -r -s /usr/sbin/nologin proxy
 # Create directories
 RUN mkdir -p /etc/squid/ssl \
     /etc/squid/conf.d \
+    /etc/squid/conf.d.default \
     /var/lib/squid/ssl_db \
     /var/spool/squid \
     /var/log/squid
 
 # Copy configuration
 COPY squid.conf /etc/squid/squid.conf
-COPY conf.d/ /etc/squid/conf.d/
+COPY conf.d/ /etc/squid/conf.d.default/
 COPY entrypoint.sh /entrypoint.sh
 
 # Make entrypoint executable
