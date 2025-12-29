@@ -93,7 +93,14 @@ export default function LoginForm() {
         </form>
 
         <p className="text-center text-gray-500 text-sm mt-6">
-          Powered by Squid Proxy
+          <a 
+            href="https://github.com/devrupt-io/squache" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-primary-600 transition-colors"
+          >
+            View on GitHub
+          </a>
         </p>
       </div>
     </div>
