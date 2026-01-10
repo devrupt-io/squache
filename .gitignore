@@ -1,0 +1,37 @@
+# Environment files (contains secrets)
+squache.env
+.env
+
+# Node.js dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+dist/
+.next/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if running locally)
+postgres_data/
+ssl_certs/
+cache_data/
+logs/
+config/
+
+# SSL certificates (generated at runtime)
+*.crt
+*.key
+*.pem
+!scripts/generate-ssl-cert.sh
