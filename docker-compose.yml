@@ -2,7 +2,9 @@
 # Standalone Docker Compose for self-hosting
 #
 # Quick Start:
-#   docker compose up -d
+#   1. Copy the example config: cp example.env .env
+#   2. Edit .env with your settings (optional)
+#   3. Start: docker compose up -d
 #
 # Dashboard: http://localhost:3011
 # Proxy:     http://localhost:3128
@@ -14,10 +16,8 @@ services:
   # PostgreSQL database
   postgres:
     image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: squache
-      POSTGRES_PASSWORD: squache_password
-      POSTGRES_DB: squache
+    env_file:
+      - .env
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -53,20 +53,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: prod
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=postgres://squache:squache_password@postgres:5432/squache
       - PORT=3010
-      - NODE_ENV=production
-      - JWT_SECRET=${JWT_SECRET:-change-this-in-production-use-a-random-string}
-      - JWT_EXPIRES_IN=7d
-      - BACKEND_URL=http://localhost:3010
-      - FRONTEND_URL=http://localhost:3011
-      - CORS_ORIGIN=http://localhost:3011
-      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@squache.local}
-      - ADMIN_PASS=${ADMIN_PASS:-}
-      - SQUID_LOG_PATH=/var/log/squid/access.log
-      - SQUID_CACHE_DIR=/var/spool/squid
-      - SSL_CERT_PATH=/etc/squid/ssl/squid-ca.crt
     ports:
       - "3010:3010"
     volumes:
@@ -87,10 +77,12 @@ services:
       dockerfile: Dockerfile
       target: runner
       args:
-        NEXT_PUBLIC_API_URL: http://localhost:3010
-        NEXT_PUBLIC_SITE_URL: http://localhost:3011
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3010}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3011}
+    env_file:
+      - .env
     environment:
-      - API_URL_INTERNAL=http://backend:3010
+      - PORT=3011
     ports:
       - "3011:3011"
     depends_on:
