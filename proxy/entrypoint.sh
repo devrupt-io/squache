@@ -35,19 +35,18 @@ fi
 # Always ensure correct ownership
 chown -R $SQUID_USER:$SQUID_USER /var/lib/squid
 
-# Create cache directory structure if needed
-if [ ! -d /var/spool/squid/00 ]; then
-    echo "Initializing cache directories..."
-    squid -z -N
-fi
-
 # Ensure log directory exists and is writable
 mkdir -p /var/log/squid
 chown -R $SQUID_USER:$SQUID_USER /var/log/squid
 
-# Ensure conf.d directory exists
+# Ensure conf.d directory exists and has required files BEFORE cache init
 mkdir -p /etc/squid/conf.d
-touch /etc/squid/conf.d/upstreams.conf
+
+# Create upstreams.conf if it doesn't exist
+if [ ! -f /etc/squid/conf.d/upstreams.conf ]; then
+    echo "Creating default upstreams.conf..."
+    cp /etc/squid/conf.d.default/upstreams.conf /etc/squid/conf.d/upstreams.conf
+fi
 
 # Create default settings.conf if it doesn't exist
 if [ ! -f /etc/squid/conf.d/settings.conf ]; then
@@ -56,6 +55,12 @@ if [ ! -f /etc/squid/conf.d/settings.conf ]; then
 fi
 
 chown -R $SQUID_USER:$SQUID_USER /etc/squid/conf.d
+
+# Create cache directory structure if needed (after conf files exist)
+if [ ! -d /var/spool/squid/00 ]; then
+    echo "Initializing cache directories..."
+    squid -z -N
+fi
 
 # Start Squid in foreground mode
 echo "Starting Squid proxy..."
