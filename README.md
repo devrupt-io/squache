@@ -3,7 +3,7 @@
 > Cache HTTPS traffic for web scraping. Cut bandwidth costs by 90%.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](#changelog)
+[![Version](https://img.shields.io/badge/version-0.2.0-green.svg)](#changelog)
 
 <video src="https://github.com/user-attachments/assets/082315ea-a766-4b07-8842-8202f17318ff" controls autoplay muted>Video not supported</video>
 
@@ -25,10 +25,11 @@ aggressively reducing bandwidth by 90%+ for repeated crawls.
 ```bash
 git clone https://github.com/devrupt-io/squache.git
 cd squache
+cp example.env .env
 docker compose up -d
 ```
 
-That's it. No configuration required. SSL certificates are generated automatically.
+That's it. SSL certificates are generated automatically.
 
 - **Dashboard:** http://localhost:3011
 - **Proxy:** http://localhost:3128
@@ -39,10 +40,10 @@ That's it. No configuration required. SSL certificates are generated automatical
 docker compose logs backend | grep -A5 "SQUACHE ADMIN"
 ```
 
-Or set your own password:
+Or set your own password in `.env`:
 
 ```bash
-ADMIN_PASS=your-password docker compose up -d
+ADMIN_PASS=your-password
 ```
 
 ### Install the CA Certificate
@@ -132,7 +133,13 @@ Access at http://localhost:3011 after starting the services.
 
 ### Environment Variables
 
-Create a `.env` file to customize:
+All configuration is done through `.env`. Copy the example file and customize:
+
+```bash
+cp example.env .env
+```
+
+Key settings you may want to change:
 
 ```bash
 # Admin credentials (password auto-generated if empty)
@@ -142,10 +149,12 @@ ADMIN_PASS=your-secure-password  # Leave empty to auto-generate on each start
 # Security (generate with: openssl rand -hex 32)
 JWT_SECRET=your-random-secret
 
-# If exposing to the internet
-FRONTEND_URL=https://squache.yourdomain.com
+# If exposing to the internet (update all three to your domain)
 BACKEND_URL=https://api.squache.yourdomain.com
+FRONTEND_URL=https://squache.yourdomain.com
 CORS_ORIGIN=https://squache.yourdomain.com
+NEXT_PUBLIC_API_URL=https://api.squache.yourdomain.com
+NEXT_PUBLIC_SITE_URL=https://squache.yourdomain.com
 ```
 
 ## API Reference
@@ -190,6 +199,12 @@ marked below.
 | POST | `/api/upstreams` | Add upstream proxy |
 | GET | `/api/upstreams/providers` | List known providers |
 
+### Domains (v0.2.0)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/domains` | Domain statistics by primary domain |
+| GET | `/api/domains/search?q=...` | Search domains |
+
 ### Health (Public)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -233,7 +248,7 @@ docker compose up -d --build
 
 ## Roadmap
 
-### v0.2.0 - Upstream Proxy Routing
+### v1.0.0 - Upstream Proxy Routing
 
 Route requests through VPN or residential proxies based on HTTP headers:
 
@@ -273,7 +288,26 @@ squache/
 
 ## Changelog
 
-### v0.1.0 (2024-12-18)
+### v0.2.0 (2026-01-10)
+
+Domains tab and improved analytics.
+
+- Fixed a bug when no upstreams were declared
+- Simplified deployment using `.env` for configuration
+- Improved layout consistency for the UI and header
+- **Domains tab** - New dashboard tab showing domain-level statistics
+  - Aggregates requests by primary domain (e.g., `cdn.example.com` → `example.com`)
+  - Shows request count, bandwidth usage, cache hit rate, errors, and response times
+  - Expandable subdomain details for each primary domain
+  - Sortable columns and time range filters (1h, 6h, 24h, 7d)
+  - Search functionality to find specific domains
+- **Domains API** - New REST endpoints for domain analytics
+  - `GET /api/domains` - Domain statistics aggregated by primary domain
+  - `GET /api/domains/search` - Search domains by name
+- Improved handling of CONNECT-style requests (e.g., `example.com:443`)
+- Better multi-part TLD support (e.g., `.co.uk`, `.com.au`)
+
+### v0.1.0 (2025-12-18)
 
 Initial release.
 
