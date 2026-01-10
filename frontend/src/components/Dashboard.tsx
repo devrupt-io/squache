@@ -14,16 +14,18 @@ import {
   Settings,
   Server,
   RefreshCw,
+  Globe,
 } from 'lucide-react';
 import StatsCards from './StatsCards';
 import BandwidthChart from './BandwidthChart';
 import LogsTable from './LogsTable';
+import DomainsTable from './DomainsTable';
 import UpstreamsList from './UpstreamsList';
 import SettingsPanel from './SettingsPanel';
 
-type Tab = 'dashboard' | 'logs' | 'upstreams' | 'settings';
+type Tab = 'dashboard' | 'logs' | 'domains' | 'upstreams' | 'settings';
 
-const VALID_TABS: Tab[] = ['dashboard', 'logs', 'upstreams', 'settings'];
+const VALID_TABS: Tab[] = ['dashboard', 'logs', 'domains', 'upstreams', 'settings'];
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
 
@@ -103,6 +105,7 @@ export default function Dashboard() {
 
   const tabs = [
     { id: 'dashboard', label: 'Dashboard', icon: BarChart2 },
+    { id: 'domains', label: 'Domains', icon: Globe },
     { id: 'logs', label: 'Logs', icon: List },
     { id: 'upstreams', label: 'Upstreams', icon: Server },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -173,6 +176,8 @@ export default function Dashboard() {
         )}
 
         {activeTab === 'logs' && <LogsTable token={token} />}
+
+        {activeTab === 'domains' && <DomainsTable token={token} />}
 
         {activeTab === 'upstreams' && <UpstreamsList token={token} isAdmin={user?.role === 'admin'} />}
 

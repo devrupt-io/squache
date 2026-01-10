@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MinusCircle } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, MinusCircle, AlertTriangle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
 
@@ -51,7 +51,28 @@ function formatRelativeTime(timestamp: string): string {
   return `${days}d`;
 }
 
-function formatSmartUrl(url: string, maxLength: number = 50): string {
+function formatSmartUrl(url: string, method: string, maxLength: number = 50): { display: string; isSpecial: boolean; tooltip: string } {
+  // Handle CONNECT requests (TLS tunnel establishment)
+  if (method === 'CONNECT') {
+    // url is like "example.com:443"
+    const host = url.split(':')[0];
+    return {
+      display: host,
+      isSpecial: false,
+      tooltip: `TLS tunnel to ${url}`,
+    };
+  }
+
+  // Handle error entries from Squid
+  if (url.startsWith('error:')) {
+    const errorType = url.replace('error:', '').replace(/-/g, ' ');
+    return {
+      display: errorType,
+      isSpecial: true,
+      tooltip: `Squid error: ${errorType}`,
+    };
+  }
+
   try {
     // Try to parse as URL
     let parsed: URL;
@@ -59,8 +80,8 @@ function formatSmartUrl(url: string, maxLength: number = 50): string {
       parsed = new URL(url);
     } catch {
       // If not a valid URL, just truncate
-      if (url.length <= maxLength) return url;
-      return url.substring(0, maxLength - 3) + '...';
+      const display = url.length <= maxLength ? url : url.substring(0, maxLength - 3) + '...';
+      return { display, isSpecial: false, tooltip: url };
     }
     
     const hostname = parsed.hostname;
@@ -80,14 +101,14 @@ function formatSmartUrl(url: string, maxLength: number = 50): string {
     
     if (pathname === '/' || pathname === '') {
       // Just the domain
-      return display;
+      return { display, isSpecial: false, tooltip: url };
     }
     
     const fullPath = pathname + search;
     
     if (fullPath.length <= remainingSpace) {
       // Path fits entirely
-      return display + fullPath;
+      return { display: display + fullPath, isSpecial: false, tooltip: url };
     }
     
     if (hasFileExtension && lastSegment.length < remainingSpace - 4) {
@@ -95,23 +116,35 @@ function formatSmartUrl(url: string, maxLength: number = 50): string {
       const availableForPath = remainingSpace - lastSegment.length - 4; // 4 for /...
       if (availableForPath > 0 && pathParts.length > 1) {
         const startPath = '/' + pathParts[0].substring(0, Math.min(pathParts[0].length, availableForPath));
-        return display + startPath + '/.../' + lastSegment;
+        return { display: display + startPath + '/.../' + lastSegment, isSpecial: false, tooltip: url };
       }
-      return display + '/.../' + lastSegment;
+      return { display: display + '/.../' + lastSegment, isSpecial: false, tooltip: url };
     }
     
     // Just truncate the path with ellipsis in the middle
     const halfLength = Math.floor((remainingSpace - 3) / 2);
     if (halfLength > 0) {
-      return display + fullPath.substring(0, halfLength) + '...' + fullPath.substring(fullPath.length - halfLength);
+      const truncated = display + fullPath.substring(0, halfLength) + '...' + fullPath.substring(fullPath.length - halfLength);
+      return { display: truncated, isSpecial: false, tooltip: url };
     }
     
-    return display + '/...';
+    return { display: display + '/...', isSpecial: false, tooltip: url };
   } catch {
     // Fallback: simple truncation
-    if (url.length <= maxLength) return url;
-    return url.substring(0, maxLength - 3) + '...';
+    const display = url.length <= maxLength ? url : url.substring(0, maxLength - 3) + '...';
+    return { display, isSpecial: false, tooltip: url };
   }
+}
+
+// Format method for display
+function formatMethod(method: string): { display: string; color: string; icon?: 'connect' | 'error' } {
+  if (method === 'CONNECT') {
+    return { display: 'CONNECT', color: 'text-blue-600', icon: 'connect' };
+  }
+  if (method === '-' || method === '') {
+    return { display: 'ERROR', color: 'text-red-600', icon: 'error' };
+  }
+  return { display: method, color: 'text-gray-900' };
 }
 
 export default function LogsTable({ token }: LogsTableProps) {
@@ -242,7 +275,10 @@ export default function LogsTable({ token }: LogsTableProps) {
                 </td>
               </tr>
             ) : (
-              logs.map((log) => (
+              logs.map((log) => {
+                const urlInfo = formatSmartUrl(log.url, log.method);
+                const methodInfo = formatMethod(log.method);
+                return (
                 <tr key={log.id} className="hover:bg-gray-50">
                   <td 
                     className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap cursor-help"
@@ -251,10 +287,15 @@ export default function LogsTable({ token }: LogsTableProps) {
                     {formatRelativeTime(log.timestamp)}
                   </td>
                   <td className="px-4 py-3 text-sm">
-                    <span className="font-medium text-gray-900">{log.method}</span>
+                    <span className={`font-medium ${methodInfo.color} flex items-center`}>
+                      {methodInfo.display}
+                    </span>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 font-mono" title={log.url}>
-                    {formatSmartUrl(log.url)}
+                  <td 
+                    className={`px-4 py-3 text-sm font-mono cursor-help ${urlInfo.isSpecial ? 'text-red-600 italic' : 'text-gray-600'}`} 
+                    title={urlInfo.tooltip}
+                  >
+                    {urlInfo.display}
                   </td>
                   <td className={`px-4 py-3 text-sm font-medium ${httpStatusColor(log.httpStatus)}`}>
                     {log.httpStatus}
@@ -272,7 +313,7 @@ export default function LogsTable({ token }: LogsTableProps) {
                   <td className="px-4 py-3 text-sm text-gray-600">{log.responseTime}ms</td>
                   <td className="px-4 py-3 text-sm text-gray-500 font-mono">{log.clientIp}</td>
                 </tr>
-              ))
+              );})
             )}
           </tbody>
         </table>

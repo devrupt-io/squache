@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Server, Globe, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
-import { useAuth } from '../../../components/AuthProvider';
+import { useAuth } from '@/components/AuthProvider';
+import AppLayout from '@/components/AppLayout';
+import ProtectedRoute from '@/components/ProtectedRoute';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3010';
 
@@ -45,7 +47,7 @@ const COUNTRIES = [
   { code: 'KR', label: 'South Korea' },
 ];
 
-export default function AddUpstreamPage() {
+function AddUpstreamContent() {
   const router = useRouter();
   const { token, user } = useAuth();
   
@@ -67,12 +69,10 @@ export default function AddUpstreamPage() {
 
   // Check auth
   useEffect(() => {
-    if (!token) {
-      router.push('/');
-    } else if (user?.role !== 'admin') {
-      router.push('/?tab=upstreams');
+    if (user && user?.role !== 'admin') {
+      router.push('/upstreams');
     }
-  }, [token, user, router]);
+  }, [user, router]);
 
   // Fetch providers
   useEffect(() => {
@@ -174,7 +174,7 @@ export default function AddUpstreamPage() {
       if (!res.ok) {
         setSubmitError(data.error || 'Failed to create proxy');
       } else {
-        router.push('/?tab=upstreams');
+        router.push('/upstreams');
       }
     } catch (err) {
       setSubmitError('Failed to create proxy');
@@ -183,21 +183,20 @@ export default function AddUpstreamPage() {
     }
   };
 
-  if (!token || user?.role !== 'admin') {
+  if (user?.role !== 'admin') {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-2xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push('/?tab=upstreams')}
-            className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Upstreams
+    <div className="max-w-2xl mx-auto">
+      {/* Header */}
+      <div className="mb-8">
+        <button
+          onClick={() => router.push('/upstreams')}
+          className="flex items-center text-gray-600 hover:text-gray-900 mb-4"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Upstreams
           </button>
           <h1 className="text-2xl font-bold text-gray-900">Add Upstream Proxy</h1>
           <p className="text-gray-600 mt-1">
@@ -383,7 +382,7 @@ export default function AddUpstreamPage() {
             </button>
             <button
               type="button"
-              onClick={() => router.push('/?tab=upstreams')}
+              onClick={() => router.push('/upstreams')}
               className="px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Cancel
@@ -391,6 +390,17 @@ export default function AddUpstreamPage() {
           </div>
         </form>
       </div>
-    </div>
   );
 }
+
+function AddUpstreamPage() {
+  return (
+    <ProtectedRoute>
+      <AppLayout>
+        <AddUpstreamContent />
+      </AppLayout>
+    </ProtectedRoute>
+  );
+}
+
+export default AddUpstreamPage;
