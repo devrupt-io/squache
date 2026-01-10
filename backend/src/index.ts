@@ -7,6 +7,7 @@ import cacheRouter from './routes/cache';
 import logsRouter from './routes/logs';
 import configRouter from './routes/config';
 import upstreamsRouter from './routes/upstreams';
+import domainsRouter from './routes/domains';
 import { LogParser } from './services/logParser';
 
 const app = express();
@@ -31,6 +32,7 @@ app.use('/api/cache', cacheRouter);
 app.use('/api/logs', logsRouter);
 app.use('/api/config', configRouter);
 app.use('/api/upstreams', upstreamsRouter);
+app.use('/api/domains', domainsRouter);
 
 // Error handling
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
