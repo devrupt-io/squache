@@ -1,5 +1,4 @@
 # Environment files (contains secrets)
-squache.env
 .env
 
 # Node.js dependencies
